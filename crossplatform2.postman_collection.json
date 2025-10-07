@@ -1,0 +1,798 @@
+{
+	"info": {
+		"_postman_id": "72321b52-6843-490d-98c6-a54cd9b29c2a",
+		"name": "CrossPlatform2 API",
+		"description": "API для управления товарами, категориями и заказами",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_token", 
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "🔐 Authentication",
+			"item": [
+				{
+					"name": "Admin Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"login\": \"admin\",\n  \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"admin_token\", jsonData.token);",
+									"    console.log(\"Admin token set: \" + jsonData.token);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "User Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"login\": \"user\",\n  \"password\": \"user123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"user_token\", jsonData.token);",
+									"    console.log(\"User token set: \" + jsonData.token);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Admin Token (Quick)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/token/secret",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "auth", "token", "secret"]
+						}
+					}
+				},
+				{
+					"name": "Get User Token (Quick)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/token",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "auth", "token"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📦 Products",
+			"item": [
+				{
+					"name": "Get All Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/products",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products"]
+						}
+					}
+				},
+				{
+					"name": "Get Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/products/1",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products", "1"]
+						}
+					}
+				},
+				{
+					"name": "Create New Product (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"New Gaming Mouse\",\n  \"price\": 79.99,\n  \"stockQuantity\": 50,\n  \"categoryId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/products",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products"]
+						}
+					}
+				},
+				{
+					"name": "Update Product (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Laptop\",\n  \"price\": 1099.99,\n  \"stockQuantity\": 8,\n  \"categoryId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/products/1",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products", "1"]
+						}
+					}
+				},
+				{
+					"name": "Delete Product (Admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/products/10",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products", "10"]
+						}
+					}
+				},
+				{
+					"name": "Get Available Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/products/available",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products", "available"]
+						}
+					}
+				},
+				{
+					"name": "Increase Stock (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "10"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/products/1/increase-stock",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products", "1", "increase-stock"]
+						}
+					}
+				},
+				{
+					"name": "Decrease Stock (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "5"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/products/1/decrease-stock",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products", "1", "decrease-stock"]
+						}
+					}
+				},
+				{
+					"name": "Search Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/products/search?name=Laptop",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "products", "search"],
+							"query": [
+								{
+									"key": "name",
+									"value": "Laptop"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📑 Categories",
+			"item": [
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/categories",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "categories"]
+						}
+					}
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/categories/1",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "categories", "1"]
+						}
+					}
+				},
+				{
+					"name": "Create Category (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Office Supplies\",\n  \"description\": \"Office equipment and supplies\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/categories",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "categories"]
+						}
+					}
+				},
+				{
+					"name": "Update Category (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Electronics\",\n  \"description\": \"Updated electronic devices category\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/categories/1",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "categories", "1"]
+						}
+					}
+				},
+				{
+					"name": "Delete Category (Admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/categories/5",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "categories", "5"]
+						}
+					}
+				},
+				{
+					"name": "Get Categories Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/categories/summary",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "categories", "summary"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📋 Orders",
+			"item": [
+				{
+					"name": "Get Active Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders"]
+						}
+					}
+				},
+				{
+					"name": "Get Archived Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/Archived",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "Archived"]
+						}
+					}
+				},
+				{
+					"name": "Get Completed Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/Completed",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "Completed"]
+						}
+					}
+				},
+				{
+					"name": "Get Cancelled Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/Cancelled",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "Cancelled"]
+						}
+					}
+				},
+				{
+					"name": "Get Order by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/1",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "1"]
+						}
+					}
+				},
+				{
+					"name": "Create Order (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerName\": \"John Smith\",\n  \"orderItems\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 2\n    },\n    {\n      \"productId\": 2,\n      \"quantity\": 1\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/CreateOrder",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "CreateOrder"]
+						}
+					}
+				},
+				{
+					"name": "Complete Order (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/1/Complete",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "1", "Complete"]
+						}
+					}
+				},
+				{
+					"name": "Cancel Order (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/1/Cancel",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "1", "Cancel"]
+						}
+					}
+				},
+				{
+					"name": "Archive Order (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/1/Archive",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "1", "Archive"]
+						}
+					}
+				},
+				{
+					"name": "Get Orders Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/Summary",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "Summary"]
+						}
+					}
+				},
+				{
+					"name": "Get Top Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/TopProducts?count=3",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "TopProducts"],
+							"query": [
+								{
+									"key": "count",
+									"value": "3"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Orders By Category",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/ByCategory",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "ByCategory"]
+						}
+					}
+				},
+				{
+					"name": "Get Recent Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/Recent",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "Recent"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/CustomerStats",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "CustomerStats"]
+						}
+					}
+				},
+				{
+					"name": "Update Order (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerName\": \"Updated Customer Name\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/1",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "1"]
+						}
+					}
+				},
+				{
+					"name": "Delete Archived Order (Admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/1",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "1"]
+						}
+					}
+				},
+				{
+					"name": "Restore Order (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/1/restore",
+							"host": ["localhost"],
+							"port": "5000",
+							"path": ["api", "orders", "1", "restore"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"protocolProfileBehavior": {}
+}
