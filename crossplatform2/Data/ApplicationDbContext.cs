@@ -17,16 +17,6 @@ namespace crossplatform2.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // Настройка отношений
-            modelBuilder.Entity<Product>()
-                .HasOne(p => p.Category)
-                .WithMany(c => c.Products)
-                .HasForeignKey(p => p.CategoryId);
-
-            modelBuilder.Entity<OrderItem>()
-                .HasOne(oi => oi.Order)
-                .WithMany(o => o.OrderItems)
-                .HasForeignKey(oi => oi.OrderId);
 
             modelBuilder.Entity<OrderItem>()
                 .HasOne(oi => oi.Product)
@@ -60,10 +50,6 @@ namespace crossplatform2.Data
                 new Product { Id = 10, Name = "Jeans", Price = 59.99m, StockQuantity = 60, CategoryId = 3 }
             );
 
-            modelBuilder.Entity<User>().HasData(
-                new User { Id = 1, Username = "admin", Password = "admin123", Role = "Admin" },
-                new User { Id = 2, Username = "user", Password = "user123", Role = "User" }
-            );
         }
     
     }

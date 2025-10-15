@@ -1,4 +1,4 @@
-﻿using crossplatform2.Data;
+﻿using crossplatform2.Models;
 using System.ComponentModel.DataAnnotations;
 
 namespace crossplatform2.Models
@@ -10,7 +10,7 @@ namespace crossplatform2.Models
         [Required]
         public string CustomerName { get; set; } = string.Empty;
 
-        public DateTime OrderDate { get; set; } = DateTime.UtcNow;
+        public DateTime OrderDate { get; set; } = DateTime.UtcNow; 
 
         public decimal TotalAmount { get; set; }
 
@@ -22,21 +22,19 @@ namespace crossplatform2.Models
 
         public List<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 
-        // Бизнес-логика
         public void CalculateTotal()
         {
             TotalAmount = OrderItems.Sum(item => item.Quantity * item.UnitPrice);
         }
 
-        public void AddOrderItem(Product product, int quantity)
+        public (bool success, string? error) AddOrderItem(Product product, int quantity)
         {
             if (!product.IsAvailable)
-                throw new InvalidOperationException("Product is not available");
+                return (false, "PRODUCT_NOT_AVAILABLE");
 
-            if (quantity > product.StockQuantity)
-                throw new InvalidOperationException("Not enough stock");
-
-            product.DecreaseStock(quantity);
+            var (decreaseSuccess, decreaseError) = product.DecreaseStock(quantity);
+            if (!decreaseSuccess)
+                return (false, decreaseError);
 
             var orderItem = new OrderItem
             {
@@ -47,6 +45,7 @@ namespace crossplatform2.Models
 
             OrderItems.Add(orderItem);
             CalculateTotal();
+            return (true, null);
         }
 
         // методы для управления статусом
@@ -66,50 +65,59 @@ namespace crossplatform2.Models
             ArchivedDate = DateTime.UtcNow;
         }
 
-        public void MoveToCompleted()
+        public enum OrderOperationResult
+        {
+            Success,
+            NotActive,
+            NotCancelled,
+            NotCompletedOrCancelled
+        }
+
+        public OrderOperationResult MoveToCompleted()
         {
             if (Status != OrderStatus.Active)
-                throw new InvalidOperationException("Only active orders can be completed");
+                return OrderOperationResult.NotActive;
 
             Status = OrderStatus.Completed;
             CompletedDate = DateTime.UtcNow;
+            return OrderOperationResult.Success;
         }
 
-        public void MoveToCancelled()
+        public OrderOperationResult MoveToCancelled()
         {
             if (Status != OrderStatus.Active)
-                throw new InvalidOperationException("Only active orders can be cancelled");
+                return OrderOperationResult.NotActive;
 
             Status = OrderStatus.Cancelled;
             CancelledDate = DateTime.UtcNow;
+            return OrderOperationResult.Success;
         }
 
-        public void RestoreFromCancelled()
+        public OrderOperationResult RestoreFromCancelled()
         {
             if (Status != OrderStatus.Cancelled)
-                throw new InvalidOperationException("Only cancelled orders can be restored");
+                return OrderOperationResult.NotCancelled;
 
             Status = OrderStatus.Active;
             CancelledDate = null;
+            return OrderOperationResult.Success;
         }
 
-        public void MoveToArchived()
+        public OrderOperationResult MoveToArchived()
         {
             if (Status != OrderStatus.Completed && Status != OrderStatus.Cancelled)
-                throw new InvalidOperationException("Only completed or cancelled orders can be archived");
+                return OrderOperationResult.NotCompletedOrCancelled;
 
             Status = OrderStatus.Archived;
             ArchivedDate = DateTime.UtcNow;
+            return OrderOperationResult.Success;
         }
     }
-
-
-
     public enum OrderStatus
     {
-        Active = 1,      // Активный заказ
-        Completed = 2,   // Выполнен
-        Cancelled = 3,   // Отменен
-        Archived = 4     // В архиве
+        Active = 1,      
+        Completed = 2,  
+        Cancelled = 3,   
+        Archived = 4     
     }
 }

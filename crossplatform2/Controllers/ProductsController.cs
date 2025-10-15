@@ -1,8 +1,7 @@
-﻿using crossplatform2.Data;
-using crossplatform2.Models;
+﻿using crossplatform2.Models;
+using crossplatform2.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace crossplatform2.Controllers
@@ -11,59 +10,57 @@ namespace crossplatform2.Controllers
     [Route("api/[controller]")]
     public class ProductsController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ProductService _productService;
 
-        public ProductsController(ApplicationDbContext context)
+        public ProductsController(ProductService productService)
         {
-            _context = context;
+            _productService = productService;
         }
 
         // GET: api/Products
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductResponseDto>>> GetProducts()
         {
-            var products = await _context.Products
-                .Include(p => p.Category)
-                .Select(p => new ProductResponseDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Price = p.Price,
-                    StockQuantity = p.StockQuantity,
-                    CategoryId = p.CategoryId,
-                    Category = p.Category != null ? p.Category.Name : "No Category",
-                    IsAvailable = p.StockQuantity > 0
-                })
-                .ToListAsync();
+            var products = await _productService.GetProductsAsync();
+            var productDtos = products.Select(p => MapToDto(p)).ToList();
+            return Ok(productDtos);
+        }
 
-            return Ok(products);
+        // GET: api/Products/Available
+        [HttpGet("available")]
+        [Authorize]
+        public async Task<ActionResult<IEnumerable<ProductResponseDto>>> GetAvailableProducts()
+        {
+            var products = await _productService.GetAvailableProductsAsync();
+            var productDtos = products.Select(p => MapToDto(p)).ToList();
+            return Ok(productDtos);
+        }
+
+        // GET: api/Products/Search?name={name}
+        [HttpGet("search")]
+        public async Task<ActionResult<IEnumerable<ProductResponseDto>>> SearchProducts([FromQuery] string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return BadRequest(new { error = "The search parameter cannot be empty" });
+            }
+
+            var products = await _productService.SearchProductsAsync(name);
+            var productDtos = products.Select(p => MapToDto(p)).ToList();
+            return Ok(productDtos);
         }
 
         // GET: api/Products/5
         [HttpGet("{id}")]
         public async Task<ActionResult<ProductResponseDto>> GetProduct(int id)
         {
-            var product = await _context.Products
-                .Include(p => p.Category)
-                .Where(p => p.Id == id)
-                .Select(p => new ProductResponseDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Price = p.Price,
-                    StockQuantity = p.StockQuantity,
-                    CategoryId = p.CategoryId,
-                    Category = p.Category != null ? p.Category.Name : "No Category",
-                    IsAvailable = p.StockQuantity > 0
-                })
-                .FirstOrDefaultAsync();
-
+            var product = await _productService.GetProductAsync(id);
             if (product == null)
             {
-                return NotFound(new { error = "Продукт не найден" });
+                return NotFound(new { error = "Product not found" });
             }
 
-            return product;
+            return MapToDto(product);
         }
 
         // POST: api/Products
@@ -76,50 +73,15 @@ namespace crossplatform2.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Проверяем существование категории
-            var categoryExists = await _context.Categories.AnyAsync(c => c.Id == createDto.CategoryId);
-            if (!categoryExists)
+            var (success, error, product) = await _productService.CreateProductAsync(createDto);
+
+            if (!success)
             {
-                return BadRequest(new { error = "Указанная категория не существует" });
+                return BadRequest(new { error = GetErrorMessage(error) });
             }
 
-            // Проверяем, нет ли продукта с таким же названием
-            var existingProduct = await _context.Products
-                .FirstOrDefaultAsync(p => p.Name.ToLower() == createDto.Name.ToLower());
-
-            if (existingProduct != null)
-            {
-                return BadRequest(new { error = "Продукт с таким названием уже существует" });
-            }
-
-            var product = new Product
-            {
-                Name = createDto.Name.Trim(),
-                Price = createDto.Price,
-                StockQuantity = createDto.StockQuantity,
-                CategoryId = createDto.CategoryId
-            };
-
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
-
-            // Загружаем категорию для ответа
-            await _context.Entry(product)
-                .Reference(p => p.Category)
-                .LoadAsync();
-
-            var responseDto = new ProductResponseDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Price = product.Price,
-                StockQuantity = product.StockQuantity,
-                CategoryId = product.CategoryId,
-                Category = product.Category?.Name ?? "No Category",
-                IsAvailable = product.IsAvailable
-            };
-
-            return CreatedAtAction("GetProduct", new { id = product.Id }, responseDto);
+            var responseDto = MapToDto(product!);
+            return CreatedAtAction("GetProduct", new { id = product!.Id }, responseDto);
         }
 
         // PUT: api/Products/5
@@ -132,47 +94,11 @@ namespace crossplatform2.Controllers
                 return BadRequest(ModelState);
             }
 
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
-            {
-                return NotFound(new { error = "Продукт не найден" });
-            }
+            var (success, error) = await _productService.UpdateProductAsync(id, updateDto);
 
-            // Проверяем существование категории
-            var categoryExists = await _context.Categories.AnyAsync(c => c.Id == updateDto.CategoryId);
-            if (!categoryExists)
+            if (!success)
             {
-                return BadRequest(new { error = "Указанная категория не существует" });
-            }
-
-            // Проверяем, нет ли другого продукта с таким же названием
-            var duplicateProduct = await _context.Products
-                .FirstOrDefaultAsync(p => p.Name.ToLower() == updateDto.Name.ToLower() && p.Id != id);
-
-            if (duplicateProduct != null)
-            {
-                return BadRequest(new { error = "Продукт с таким названием уже существует" });
-            }
-
-            product.Name = updateDto.Name.Trim();
-            product.Price = updateDto.Price;
-            product.StockQuantity = updateDto.StockQuantity;
-            product.CategoryId = updateDto.CategoryId;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!ProductExists(id))
-                {
-                    return NotFound(new { error = "Продукт не найден" });
-                }
-                else
-                {
-                    throw;
-                }
+                return BadRequest(new { error = GetErrorMessage(error) });
             }
 
             return NoContent();
@@ -183,50 +109,14 @@ namespace crossplatform2.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
+            var (success, error) = await _productService.DeleteProductAsync(id);
+
+            if (!success)
             {
-                return NotFound(new { error = "Продукт не найден" });
+                return BadRequest(new { error = GetErrorMessage(error) });
             }
 
-            // Проверяем, нет ли заказов с этим продуктом
-            var hasOrderItems = await _context.OrderItems.AnyAsync(oi => oi.ProductId == id);
-            if (hasOrderItems)
-            {
-                return BadRequest(new
-                {
-                    error = "Невозможно удалить продукт, который присутствует в заказах",
-                    message = "Сначала удалите все упоминания этого продукта из заказов"
-                });
-            }
-
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Продукт успешно удален", deletedProduct = new { id = product.Id, name = product.Name } });
-        }
-
-        // GET: api/Products/Available
-        [HttpGet("available")]
-        [Authorize]
-        public async Task<ActionResult<IEnumerable<ProductResponseDto>>> GetAvailableProducts()
-        {
-            var availableProducts = await _context.Products
-                .Include(p => p.Category)
-                .Where(p => p.StockQuantity > 0)
-                .Select(p => new ProductResponseDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Price = p.Price,
-                    StockQuantity = p.StockQuantity,
-                    CategoryId = p.CategoryId,
-                    Category = p.Category != null ? p.Category.Name : "No Category",
-                    IsAvailable = true
-                })
-                .ToListAsync();
-
-            return Ok(availableProducts);
+            return Ok(new { message = "The product was successfully deleted" });
         }
 
         // POST: api/Products/5/Increase-Stock
@@ -234,31 +124,22 @@ namespace crossplatform2.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> IncreaseStock(int id, [FromBody] int quantity)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
+            var (success, error) = await _productService.IncreaseStockAsync(id, quantity);
+
+            if (!success)
             {
-                return NotFound(new { error = "Продукт не найден" });
+                return BadRequest(new { error = "Failed to increase stock" });
             }
 
-            try
+            var product = await _productService.GetProductAsync(id);
+            return Ok(new
             {
-                product.IncreaseStock(quantity);
-                await _context.SaveChangesAsync();
-
-                return Ok(new
-                {
-                    message = $"Запас увеличен на {quantity}",
-                    productId = product.Id,
-                    productName = product.Name,
-                    oldQuantity = product.StockQuantity - quantity,
-                    newQuantity = product.StockQuantity,
-                    isAvailable = product.IsAvailable
-                });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { error = ex.Message });
-            }
+                message = $"The stock has been increased by {quantity}",
+                productId = product!.Id,
+                productName = product.Name,
+                newQuantity = product.StockQuantity,
+                isAvailable = product.IsAvailable
+            });
         }
 
         // POST: api/Products/5/Decrease-Stock
@@ -266,116 +147,77 @@ namespace crossplatform2.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DecreaseStock(int id, [FromBody] int quantity)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
+            var (success, error) = await _productService.DecreaseStockAsync(id, quantity);
+
+            if (!success)
             {
-                return NotFound(new { error = "Продукт не найден" });
+                return BadRequest(new { error = GetErrorMessage(error) });
             }
 
-            try
+            var product = await _productService.GetProductAsync(id);
+            return Ok(new
             {
-                product.DecreaseStock(quantity);
-                await _context.SaveChangesAsync();
+                message = $"The stock has been decreased by {quantity}",
+                productId = product!.Id,
+                productName = product.Name,
+                newQuantity = product.StockQuantity,
+                isAvailable = product.IsAvailable
+            });
+        }
 
-                return Ok(new
-                {
-                    message = $"Запас уменьшен на {quantity}",
-                    productId = product.Id,
-                    productName = product.Name,
-                    oldQuantity = product.StockQuantity + quantity,
-                    newQuantity = product.StockQuantity,
-                    isAvailable = product.IsAvailable
-                });
-            }
-            catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException)
+        private ProductResponseDto MapToDto(Product product)
+        {
+            return new ProductResponseDto
             {
-                return BadRequest(new { error = ex.Message });
-            }
+                Id = product.Id,
+                Name = product.Name,
+                Price = product.Price,
+                StockQuantity = product.StockQuantity,
+                CategoryId = product.CategoryId,
+                Category = product.Category?.Name ?? "No Category",
+                IsAvailable = product.IsAvailable
+            };
         }
 
-        // GET: api/Products/Search?name={name}
-        [HttpGet("search")]
-        public async Task<ActionResult<IEnumerable<ProductResponseDto>>> SearchProducts([FromQuery] string name)
+        private string GetErrorMessage(string errorCode)
         {
-            if (string.IsNullOrWhiteSpace(name))
+            return errorCode switch
             {
-                return BadRequest(new { error = "Параметр поиска не может быть пустым" });
-            }
-
-            var products = await _context.Products
-                .Include(p => p.Category)
-                .Where(p => p.Name.ToLower().Contains(name.ToLower()))
-                .Select(p => new ProductResponseDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Price = p.Price,
-                    StockQuantity = p.StockQuantity,
-                    CategoryId = p.CategoryId,
-                    Category = p.Category != null ? p.Category.Name : "No Category",
-                    IsAvailable = p.StockQuantity > 0
-                })
-                .ToListAsync();
-
-            return Ok(products);
-        }
-
-        private bool ProductExists(int id)
-        {
-            return _context.Products.Any(e => e.Id == id);
-        }
-
-        // DTO для создания продукта
-        public class CreateProductDto
-        {
-            [Required(ErrorMessage = "Название продукта обязательно")]
-            [StringLength(100, ErrorMessage = "Название продукта не может превышать 100 символов")]
-            public string Name { get; set; } = string.Empty;
-
-            [Required(ErrorMessage = "Цена продукта обязательна")]
-            [Range(0.01, double.MaxValue, ErrorMessage = "Цена должна быть положительной")]
-            public decimal Price { get; set; }
-
-            [Required(ErrorMessage = "Количество на складе обязательно")]
-            [Range(0, int.MaxValue, ErrorMessage = "Количество не может быть отрицательным")]
-            public int StockQuantity { get; set; }
-
-            [Required(ErrorMessage = "ID категории обязателен")]
-            [Range(1, int.MaxValue, ErrorMessage = "Необходимо указать существующую категорию")]
-            public int CategoryId { get; set; }
-        }
-
-        // DTO для обновления продукта
-        public class UpdateProductDto
-        {
-            [Required(ErrorMessage = "Название продукта обязательно")]
-            [StringLength(100, ErrorMessage = "Название продукта не может превышать 100 символов")]
-            public string Name { get; set; } = string.Empty;
-
-            [Required(ErrorMessage = "Цена продукта обязательна")]
-            [Range(0.01, double.MaxValue, ErrorMessage = "Цена должна быть положительной")]
-            public decimal Price { get; set; }
-
-            [Required(ErrorMessage = "Количество на складе обязательно")]
-            [Range(0, int.MaxValue, ErrorMessage = "Количество не может быть отрицательным")]
-            public int StockQuantity { get; set; }
-
-            [Required(ErrorMessage = "ID категории обязателен")]
-            [Range(1, int.MaxValue, ErrorMessage = "Необходимо указать существующую категорию")]
-            public int CategoryId { get; set; }
-        }
-
-        // DTO для ответа (чтение продукта)
-        public class ProductResponseDto
-        {
-            public int Id { get; set; }
-            public string Name { get; set; } = string.Empty;
-            public decimal Price { get; set; }
-            public int StockQuantity { get; set; }
-            public int CategoryId { get; set; }
-            public string Category { get; set; } = string.Empty;
-            public bool IsAvailable { get; set; }
+                "PRODUCT_NOT_FOUND" => "Product not found",
+                "CATEGORY_NOT_FOUND" => "The specified category does not exist",
+                "PRODUCT_DUPLICATE_NAME" => "A product with that name already exists",
+                "PRODUCT_HAS_ORDERS" => "It is not possible to delete a product that is present in the orders",
+                "INSUFFICIENT_STOCK" => "Insufficient stock",
+                "INVALID_QUANTITY" => "Invalid quantity",
+                _ => errorCode
+            };
         }
     }
 
+    public class CreateProductDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public int StockQuantity { get; set; }
+        public int CategoryId { get; set; }
+    }
+
+    public class UpdateProductDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public int StockQuantity { get; set; }
+        public int CategoryId { get; set; }
+    }
+
+    public class ProductResponseDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public int StockQuantity { get; set; }
+        public int CategoryId { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public bool IsAvailable { get; set; }
+    }
 }

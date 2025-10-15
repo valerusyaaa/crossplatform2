@@ -1,7 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
-using crossplatform2.Data;
+﻿using crossplatform2.Data;
 using crossplatform2.Models;
+using crossplatform2.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -14,11 +15,18 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
 
+// Регистрация сервисов 
+builder.Services.AddScoped<PasswordService>();
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<DbInitializerService>();
+builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<CategoryService>();
+
 // Add DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Configure JWT Authentication 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -29,8 +37,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidAudience = AuthOptions.Audience,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = AuthOptions.SigningKey,
+            IssuerSigningKey = AuthOptions.GetSigningKey(builder.Configuration),
             ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero // Убираем запас времени
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                Console.WriteLine($"Authentication failed: {context.Exception.Message}");
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                Console.WriteLine("Token validated successfully");
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -39,17 +62,11 @@ builder.Services.AddAuthorization();
 // Configure Swagger with JWT support
 builder.Services.AddSwaggerGen(c =>
 {
-    c.EnableAnnotations();
+    //c.EnableAnnotations();
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "CrossPlatform2 API",
         Version = "v1",
-        Description = "API для управления товарами и заказами",
-        Contact = new OpenApiContact
-        {
-            Name = "Support",
-            Email = "support@example.com"
-        }
     });
 
     // Add JWT Authentication support in Swagger
@@ -82,6 +99,21 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var initializer = services.GetRequiredService<DbInitializerService>();
+        await initializer.InitializeAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while initializing the database.");
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -93,7 +125,7 @@ if (app.Environment.IsDevelopment())
         c.RoutePrefix = "swagger";
     });
 }
-
+ 
 app.UseHttpsRedirection();
 
 // Configure CORS
@@ -114,22 +146,12 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    // удаление и пересоздание базы
-    if (app.Environment.IsDevelopment())
-    {
-        context.Database.EnsureDeleted(); // Удаляем существующую базу
-        Console.WriteLine("База данных удалена для пересоздания");
-    }
+    context.Database.Migrate();
 
-    context.Database.EnsureCreated(); // Создаем новую базу с актуальной схемой
-    Console.WriteLine("База данных создана с тестовыми данными");
-
-    // Проверяем что данные загружены
+    // Проверяем данные
     var productsCount = context.Products.Count();
     var categoriesCount = context.Categories.Count();
     var usersCount = context.Users.Count();
-
-    Console.WriteLine($"Загружено: {productsCount} продуктов, {categoriesCount} категорий, {usersCount} пользователей");
 }
 
 app.Run();

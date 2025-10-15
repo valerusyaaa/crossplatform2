@@ -1,7 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using crossplatform2.Models;
-using crossplatform2.Data;
+﻿using crossplatform2.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace crossplatform2.Controllers
 {
@@ -9,7 +8,14 @@ namespace crossplatform2.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly UserService _userService;
+        private readonly IConfiguration _configuration;
+
+        public AuthController(UserService userService, IConfiguration configuration)
+        {
+            _userService = userService;
+            _configuration = configuration;
+        }
 
         public struct LoginData
         {
@@ -17,50 +23,61 @@ namespace crossplatform2.Controllers
             public string password { get; set; }
         }
 
-        public AuthController(ApplicationDbContext context)
-        {
-            _context = context;
-        }
-
         [HttpPost("login")]
         public async Task<object> Login([FromBody] LoginData ld)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == ld.login);
+            var user = await _userService.AuthenticateAsync(ld.login, ld.password);
 
-            if (user == null || !user.CheckPassword(ld.password))
+            if (user == null)
             {
-                Response.StatusCode = 401;
-                return new { message = "Wrong login/password" };
+                return Unauthorized(new { message = "Wrong login/password" });
             }
 
-            var token = AuthOptions.GenerateToken(user.Username, user.Role);
+            var token = AuthOptions.GenerateToken(user.Username, user.Role, _configuration);
+
             return new { token = token, role = user.Role };
         }
 
+        [HttpPost("register")]
+        public async Task<ActionResult> Register([FromBody] RegisterRequest request)
+        {
+            var (success, user, error) = await _userService.CreateUserAsync(request.Username, request.Password, "User");
+
+            if (!success)
+                return BadRequest(new { error = error });
+
+            return Ok(new { message = "User created successfully", username = user.Username });
+        }
+
         [HttpGet("users")]
-        public async Task<ActionResult<List<User>>> GetUsers()
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<List<UserResponse>>> GetUsers()
         {
-            return await _context.Users.ToListAsync();
-        }
+            var users = await _userService.GetUsersAsync();
+            var userResponses = users.Select(u => new UserResponse
+            {
+                Id = u.Id,
+                Username = u.Username,
+                Role = u.Role,
+                CreatedAt = u.CreatedAt,
+                LastLogin = u.LastLogin
+            }).ToList();
 
-        [HttpGet("token")]
-        public object GetToken()
-        {
-            return new { token = AuthOptions.GenerateToken("user", "User") };
+            return Ok(userResponses);
         }
+    }
+    public class RegisterRequest
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
 
-        [HttpGet("token/secret")]
-        public object GetAdminToken()
-        {
-            return new { token = AuthOptions.GenerateToken("admin", "Admin") };
-        }
-
-        [HttpGet("profile")]
-        public object GetProfile()
-        {
-            // Этот метод может использоваться для проверки текущего пользователя
-            return new { message = "Profile endpoint - requires authentication" };
-        }
+    public class UserResponse
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? LastLogin { get; set; }
     }
 }

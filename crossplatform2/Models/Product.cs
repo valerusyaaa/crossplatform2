@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using static crossplatform2.Controllers.ProductsController;
 
 namespace crossplatform2.Models
 {
@@ -22,17 +23,25 @@ namespace crossplatform2.Models
         // Бизнес-логика
         public bool IsAvailable => StockQuantity > 0; // Правило доступности
 
-        public void DecreaseStock(int quantity) // Управление запасами с валидацией
+        public (bool success, string error) DecreaseStock(int quantity)
         {
-            if (quantity <= 0) throw new ArgumentException("Quantity must be positive");
-            if (StockQuantity < quantity) throw new InvalidOperationException("Not enough stock");
+            if (quantity <= 0)
+                return (false, "INVALID_QUANTITY");
+
+            if (StockQuantity < quantity)
+                return (false, "INSUFFICIENT_STOCK");
+
             StockQuantity -= quantity;
+            return (true, string.Empty);
         }
 
-        public void IncreaseStock(int quantity) // Безопасное увеличение запасов
+        public (bool success, string error) IncreaseStock(int quantity)
         {
-            if (quantity <= 0) throw new ArgumentException("Quantity must be positive");
+            if (quantity <= 0)
+                return (false, "ERROR");
+
             StockQuantity += quantity;
+            return (true, string.Empty);
         }
     }
 }
